@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <style>
+    #vol-range-container {
+      display: inline-block;
+      background-color: lightgray;
+      border: 2px solid gray;
+      padding: 5px 10px;
+      cursor: pointer;
+      margin-left: 25px;
+    }
+
+    .demo-container {
+      padding: 60px;
+      display: flex;
+      align-items: center;
+    }
+
+    #vol-num {
+      display: inline-block;
+      width: 30px;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="demo-container">
+    <div>Volume: <span id="vol-num">50</span></div>
+    <div id="vol-range-container">
+      <input type="range" disabled min="0" max="1000" value="500">
+    </div>
+  </div>
+
+  <audio src="bensound-cute.mp3" loop id="audio-player"></audio>
+  <p>
+    <button id="play-music">Play Music</button>
+    Music gracefully provided by <a href="http://www.bensound.com/royalty-free-music" rel="noopener"
+      target="_blank">http://www.bensound.com/royalty-free-music</a>
+  </p>
+
+  <!--
+      Lessons learned:
+      1) Sometimes codepen needs a hard refresh for things to work right
+      2) Needed to have a quick setInterval timeout so that the slider seemed responsive, but that also meant adding fast (I tried decimals and it didn't work, but maybe I didn't look hard enough?). So then putting the range as a huge number made up for that.
+      3) I had it working for dragging on the right side, but then realized that I needed to have it work for dragging on the left side as well, since we're simulating gravity. So we calculate the halfway point, and check to see which side of the halfway point the click happened on, and use that for our math.
+      -->
+
+  <script>
+    //getting refs to the dom nodes
+    const volRangeContainer = document.querySelector('#vol-range-container')
+    const volInput = document.querySelector('#vol-range-container > input')
+    const volNum = document.querySelector('#vol-num')
+    const player = document.querySelector('#audio-player')
+    player.volume = .5 //default to half, just like the slider
+
+    //globals that will be changed and cleared
+    let initialPosition = null
+    let intervalId = null
+
+    //calculating the halfway point
+    const volRangeBounding = volRangeContainer.getBoundingClientRect()
+    const volRangeHalfway = volRangeBounding.x + (volRangeBounding.width / 2)
+
+    volRangeContainer.addEventListener("mousedown", () => {
+      document.onmousemove = trackMouseMovement
+    })
+
+    document.addEventListener("mouseup", clearMouseData)
+
+    function clearMouseData() {
+      document.onmousemove = null
+      initialPosition = null
+      volRangeContainer.style.transform = null
+      clearInterval(intervalId)
+    }
+
+    function trackMouseMovement(evt) {
+      if (!initialPosition) initialPosition = evt.clientY
+      const upOrDown = evt.clientX >= volRangeHalfway ? 1 : -1
+      volRangeContainer.style.transform = `rotate(${(evt.clientY - initialPosition) * upOrDown}deg)`
+      const decimalChange = (evt.clientY - initialPosition) / initialPosition
+      changeVolume(changeByCalculator(decimalChange * upOrDown))
+    }
+
+    function changeByCalculator(decimalChange) {
+      const percentChange = Math.round(100 * decimalChange)
+      const absPercentChange = Math.abs(percentChange)
+
+      if (absPercentChange <= 15) return 1 * Math.sign(percentChange)
+      if (absPercentChange <= 30) return 5 * Math.sign(percentChange)
+      if (absPercentChange <= 45) return 10 * Math.sign(percentChange)
+      return 15 * Math.sign(percentChange)
+    }
+
+    function changeVolume(changeByNum) {
+      if (intervalId) clearInterval(intervalId)
+      intervalId = setInterval(() => {
+        const newValue = parseInt(volInput.value) + changeByNum
+        volInput.value = `${newValue}`
+        volNum.innerText = `${Math.round(volInput.value / 10)}`
+        player.volume = volInput.value / 1000
+      }, 10)
+    }
+
+
+    // code to play the music
+    const playMusic = document.querySelector('#play-music')
+    playMusic.onclick = () => {
+      if (player.paused) {
+        player.play()
+        playMusic.innerText = "Pause Music"
+      } else {
+        player.pause()
+        playMusic.innerText = "Play Music"
+      }
+    }
+  </script>
+</body>
+
+</html>

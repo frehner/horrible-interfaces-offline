@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <style>
+    :root {
+      --skybox: 500px;
+      --sphere: 100px;
+    }
+
+    #skybox {
+      position: relative;
+      background-color: cyan;
+      width: var(--skybox);
+      height: var(--skybox);
+    }
+
+    .sphere {
+      width: var(--sphere);
+      height: var(--sphere);
+      border-radius: calc(var(--sphere) / 2);
+      position: absolute;
+    }
+
+    #sun {
+      background-color: yellow;
+      left: calc((var(--skybox) / 2) - (var(--sphere) / 2));
+      top: calc((var(--skybox) / 2) - (var(--sphere) / 2));
+    }
+
+    #moon {
+      background-color: gray;
+      cursor: move;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="skybox">
+    <div id="sun" class="sphere"></div>
+    <div id="moon" class="sphere" draggable="true"></div>
+  </div>
+  <div>
+    Volume: <span id="volume-text">0%</span>
+  </div>
+
+  <audio src="https://www.bensound.com/bensound-music/bensound-cute.mp3" loop id="audio-player"></audio>
+  <p>
+    <button id="play-music">Play Music</button>
+    Music gracefully provided by <a href="http://www.bensound.com/royalty-free-music" rel="noopener"
+      target="_blank">http://www.bensound.com/royalty-free-music</a>
+  </p>
+
+
+  <!--
+      1) drag and drop API!
+
+      2) make an empty drag image since the one that we get by default makes things look ugly
+
+      3) the initial drag doesn't take into account the position of the mouse relative to the moon, so we need to do that ourselves
+
+      4) trig! or something. triangles at least
+      -->
+
+  <script>
+    const sun = document.querySelector('#sun')
+    const moon = document.querySelector('#moon')
+    const skybox = document.querySelector('#skybox')
+    const volText = document.querySelector('#volume-text')
+    const player = document.querySelector('#audio-player')
+    player.volume = 0
+
+    const skyboxDimensions = skybox.getBoundingClientRect()
+    const moonDimensions = moon.getBoundingClientRect()
+    const sunMiddle = sun.offsetLeft + moonDimensions.width / 2
+
+    // create an empty drag image since we don't want or need one
+    const emptyImage = document.createElement('img')
+    emptyImage.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'
+    document.body.appendChild(emptyImage)
+
+    const initialCoords = {}
+
+    moon.ondragstart = evt => {
+      initialCoords.clientX = evt.clientX
+      initialCoords.clientY = evt.clientY
+      initialCoords.offsetLeft = moon.offsetLeft
+      initialCoords.offsetTop = moon.offsetTop
+
+      evt.dataTransfer.setDragImage(emptyImage, 0, 0)
+    }
+
+    moon.ondrag = evt => {
+      if (evt.clientX >= 0 && evt.clientY >= 0) {
+        moon.style.left = getBoundedLocation(initialCoords.offsetLeft, evt.clientX, initialCoords.clientX)
+        moon.style.top = getBoundedLocation(initialCoords.offsetTop, evt.clientY, initialCoords.clientY)
+
+        calculateTotalEclipseOfTheHeart()
+      }
+    }
+
+    skybox.addEventListener("dragover", evt => {
+      evt.preventDefault();
+    })
+
+    function getBoundedLocation(initialOffset, mouseLoc, initialMouseLoc) {
+      let newLocation = initialOffset + mouseLoc - initialMouseLoc
+
+      // make sure we're bound by the top and left of the skybox
+      newLocation = Math.max(newLocation, 0)
+
+      // make sure we're bound by the bottom and right of the skybox - yes we're cheating by using width for height as well, but let's assume a square for the moment
+      newLocation = Math.min(newLocation, (skyboxDimensions.width - moonDimensions.width))
+
+      return `${newLocation}px`
+    }
+
+    function calculateTotalEclipseOfTheHeart() {
+      const moonMiddleLeft = moon.offsetLeft + moonDimensions.width / 2
+      const moonMiddleTop = moon.offsetTop + moonDimensions.width / 2
+
+      const lengthOfTri = Math.abs(sunMiddle - moonMiddleLeft)
+      const heightOfTri = Math.abs(sunMiddle - moonMiddleTop)
+
+      //distance AKA hypotenuse of the triange
+      const distance = Math.sqrt((lengthOfTri * lengthOfTri) + (heightOfTri * heightOfTri))
+      let volume
+
+      if (distance <= 100) {
+        volume = Math.floor(100 - distance)
+      } else {
+        volume = 0
+      }
+
+      volText.innerText = `${volume}%`
+      player.volume = volume / 100
+      skybox.style.filter = `brightness(${1 - volume / 100})`
+    }
+
+    // code to play the music
+    const playMusic = document.querySelector('#play-music')
+    playMusic.onclick = () => {
+      if (player.paused) {
+        player.play()
+        playMusic.innerText = "Pause Music"
+      } else {
+        player.pause()
+        playMusic.innerText = "Play Music"
+      }
+    }
+  </script>
+</body>
+
+</html>

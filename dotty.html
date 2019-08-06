@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <style>
+    .container {
+      background-color: lightgray;
+      height: 90vh;
+      position: relative;
+    }
+
+    #canvas {
+      height: 100%;
+      width: 100%;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <canvas id="canvas"></canvas>
+  </div>
+  <audio src="bensound-cute.mp3" loop id="audio-player"></audio>
+  <p>
+    <button id="play-music">Play Music</button>
+    <span id="volume-text">0%</span> Music gracefully provided by <a href="http://www.bensound.com/royalty-free-music"
+      rel="noopener" target="_blank">http://www.bensound.com/royalty-free-music</a>
+  </p>
+
+  Please enable this feature flag in your browser in order for this to work in <a
+    href="chrome://flags/#enable-experimental-web-platform-features">Chrome</a> or <a href="about:config">Firefox</a>.
+  (Right click, copy link address, paste into url bar. For
+  FF, search for "hitregion") Also see <a
+    href="https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/addHitRegion">this article for
+    details</a>
+
+  <script src="tensorflow/tfjs.js"></script>
+
+  <script>
+    const modelJson = {"modelTopology": {"keras_version": "2.1.6", "backend": "tensorflow", "model_config": {"class_name": "Sequential", "config": [{"class_name": "Conv2D", "config": {"name": "conv2d_1", "trainable": true, "batch_input_shape": [null, 28, 28, 1], "dtype": "float32", "filters": 32, "kernel_size": [5, 5], "strides": [1, 1], "padding": "valid", "data_format": "channels_last", "dilation_rate": [1, 1], "activation": "relu", "use_bias": true, "kernel_initializer": {"class_name": "VarianceScaling", "config": {"scale": 1.0, "mode": "fan_avg", "distribution": "uniform", "seed": null}}, "bias_initializer": {"class_name": "Zeros", "config": {}}, "kernel_regularizer": null, "bias_regularizer": null, "activity_regularizer": null, "kernel_constraint": null, "bias_constraint": null}}, {"class_name": "MaxPooling2D", "config": {"name": "max_pooling2d_1", "trainable": true, "pool_size": [2, 2], "padding": "valid", "strides": [2, 2], "data_format": "channels_last"}}, {"class_name": "Dropout", "config": {"name": "dropout_1", "trainable": true, "rate": 0.2, "noise_shape": null, "seed": null}}, {"class_name": "Flatten", "config": {"name": "flatten_1", "trainable": true, "data_format": "channels_last"}}, {"class_name": "Dense", "config": {"name": "dense_1", "trainable": true, "units": 128, "activation": "relu", "use_bias": true, "kernel_initializer": {"class_name": "VarianceScaling", "config": {"scale": 1.0, "mode": "fan_avg", "distribution": "uniform", "seed": null}}, "bias_initializer": {"class_name": "Zeros", "config": {}}, "kernel_regularizer": null, "bias_regularizer": null, "activity_regularizer": null, "kernel_constraint": null, "bias_constraint": null}}, {"class_name": "Dense", "config": {"name": "dense_2", "trainable": true, "units": 10, "activation": "softmax", "use_bias": true, "kernel_initializer": {"class_name": "VarianceScaling", "config": {"scale": 1.0, "mode": "fan_avg", "distribution": "uniform", "seed": null}}, "bias_initializer": {"class_name": "Zeros", "config": {}}, "kernel_regularizer": null, "bias_regularizer": null, "activity_regularizer": null, "kernel_constraint": null, "bias_constraint": null}}]}, "training_config": {"optimizer_config": {"class_name": "Adam", "config": {"lr": 0.0010000000474974513, "beta_1": 0.8999999761581421, "beta_2": 0.9990000128746033, "decay": 0.0, "epsilon": 1e-07, "amsgrad": false}}, "loss": "categorical_crossentropy", "metrics": ["accuracy"], "sample_weight_mode": null, "loss_weights": null}}, "weightsManifest": [{"paths": ["group1-shard1of1"], "weights": [{"name": "conv2d_1/kernel", "shape": [5, 5, 1, 32], "dtype": "float32"}, {"name": "conv2d_1/bias", "shape": [32], "dtype": "float32"}]}, {"paths": ["group2-shard1of1"], "weights": [{"name": "dense_1/kernel", "shape": [4608, 128], "dtype": "float32"}, {"name": "dense_1/bias", "shape": [128], "dtype": "float32"}]}, {"paths": ["group3-shard1of1"], "weights": [{"name": "dense_2/kernel", "shape": [128, 10], "dtype": "float32"}, {"name": "dense_2/bias", "shape": [10], "dtype": "float32"}]}]}
+    localStorage.setItem("my-model", JSON.stringify(modelJson))
+
+    const container = document.querySelector(".container");
+    const canvas = document.querySelector("#canvas");
+    const volText = document.querySelector("#volume-text");
+    const player = document.querySelector("#audio-player");
+    const ctx = canvas.getContext("2d");
+    const containerRect = container.getBoundingClientRect();
+    canvas.width = canvas.offsetWidth;
+    canvas.height = canvas.offsetHeight;
+
+    player.volume = 0;
+
+    // some random number I chose to get a decent ratio of dots to whitespace
+    const numDots = 200;
+
+    let draggingDot, draggingDotInitalRect, continueDrawing, rectangleData;
+
+    const dotsInfo = {};
+
+    for (let i = 0; i < numDots; i++) {
+      // -10 on each of these because that's the height / width of each dot, so this keeps the dots inside the container
+      const x = getBoundedRandomNumber(10, containerRect.width - 10);
+      const y = getBoundedRandomNumber(10, containerRect.height - 10);
+
+      dotsInfo[i] = {
+        x,
+        y
+      };
+    }
+
+    drawDots();
+
+    function drawDots() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      for (const dotKey in dotsInfo) {
+        ctx.beginPath();
+        ctx.arc(dotsInfo[dotKey].x, dotsInfo[dotKey].y, 10, 0, 2 * Math.PI);
+        ctx.fillStyle = "blue";
+        ctx.fill();
+        // https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/addHitRegion
+        ctx.addHitRegion({ id: dotKey });
+      }
+
+      if (rectangleData) {
+        ctx.beginPath();
+        ctx.rect(
+          rectangleData.x,
+          rectangleData.y,
+          rectangleData.width,
+          rectangleData.height
+        );
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = "red";
+        // ctx.fill = "lightgray";
+        ctx.stroke();
+      }
+
+      if (continueDrawing) {
+        requestAnimationFrame(drawDots);
+      }
+    }
+
+    canvas.addEventListener("mousedown", evt => {
+      continueDrawing = true;
+      if (evt.region) {
+        draggingDot = dotsInfo[evt.region];
+      }
+      if (!draggingDot) {
+        rectangleData = {
+          x: evt.offsetX,
+          y: evt.offsetY
+        };
+      }
+      requestAnimationFrame(drawDots);
+    });
+
+    canvas.addEventListener("mousemove", evt => {
+      if (continueDrawing) {
+        if (draggingDot) {
+          draggingDot.x = evt.offsetX;
+          draggingDot.y = evt.offsetY;
+        } else {
+          rectangleData.width = evt.offsetX - rectangleData.x;
+          rectangleData.height = evt.offsetY - rectangleData.y;
+        }
+      }
+    });
+
+    canvas.addEventListener("mouseup", evt => {
+      continueDrawing = false;
+      if (draggingDot) {
+        draggingDot = null;
+      } else {
+        // stop drawing the box, create a brand new canvas that only contains what was in the box, and then use Tesseract to OCR it
+        const tempCanvas = document.createElement("canvas");
+        tempCanvas.width = rectangleData.width;
+        tempCanvas.height = rectangleData.height;
+        const tempCtx = tempCanvas.getContext("2d");
+
+        // this copies over the box in the original canvas to the new canvas
+        tempCtx.drawImage(canvas,
+          rectangleData.x + 1,
+          rectangleData.y + 1,
+          rectangleData.width - 2,
+          rectangleData.height - 2,
+          0,
+          0,
+          rectangleData.width,
+          rectangleData.height
+        );
+
+        tfPredict();
+
+        async function tfPredict() {
+          try {
+            const model = await tf.loadLayersModel("http://127.0.0.1:8081/model.json");
+            let tensor = tf.browser.fromPixels(tempCanvas)
+              .resizeNearestNeighbor([28, 28])
+              .mean(2)
+              .expandDims(2)
+              .expandDims()
+              .toFloat()
+              .div(255.0);
+
+            const predictions = await model.predict(tensor).data();
+
+            // get the model's prediction results
+            const results = Array.from(predictions);
+            console.log("RESULTS", results);
+
+            const guessedResult = Object.keys(results).reduce((prev, curr) => {
+              return results[curr] >= results[prev] ? curr : prev;
+            }, 0);
+
+            volText.innerText = `${guessedResult * 10}%`;
+            player.volume = guessedResult / 10;
+          } catch (err) {
+            console.error(err);
+          }
+        }
+
+        rectangleData = null;
+      }
+    });
+
+    function getBoundedRandomNumber(min, max) {
+      // https://stackoverflow.com/a/1527820
+      return Math.random() * (max - min) + min;
+    }
+
+    function getBoundedLocation(initialOffset, mouseLoc, initialMouseLoc) {
+      let newLocation = initialOffset + mouseLoc - initialMouseLoc;
+
+      // make sure we're bound by the top and left of the skybox
+      // newLocation = Math.max(newLocation, 0)
+
+      // make sure we're bound by the bottom and right of the skybox - yes we're cheating by using width for height as well, but let's assume a square for the moment
+      // newLocation = Math.min(newLocation, (skyboxDimensions.width - moonDimensions.width))
+
+      return `${newLocation}px`;
+    }
+
+    // code to play the music
+    const playMusic = document.querySelector("#play-music");
+    playMusic.onclick = () => {
+      if (player.paused) {
+        player.play();
+        playMusic.innerText = "Pause Music";
+      } else {
+        player.pause();
+        playMusic.innerText = "Play Music";
+      }
+    };
+
+  </script>
+</body>
+
+</html>

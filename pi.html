@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<body>
+  Type the digits of PI to change the volume
+  <input type="text" id="pi-input">
+  <span style="color:red;display:none" id="failed-text">Failed; start over</span>
+  <div>
+    Volume: <span id="volume-number">0</span>
+  </div>
+
+  <audio src="bensound-cute.mp3" loop id="audio-player"></audio>
+  <p>
+    <button id="play-music">Play Music</button>
+    Music gracefully provided by <a href="http://www.bensound.com/royalty-free-music" rel="noopener"
+      target="_blank">http://www.bensound.com/royalty-free-music</a>
+  </p>
+  <!--
+    1. Math.Pi is only accurate to 15 digits in JS, so that's not going to cut it for us. Going to have to use a string then
+  -->
+
+  <script>
+    const piString = '3.14159265358979323846264338327950288419716939937510582097494459230781640628620899862803482534211706'
+    const piInput = document.querySelector('#pi-input')
+    const volumeNumber = document.querySelector('#volume-number')
+    const failedText = document.querySelector('#failed-text')
+    const player = document.querySelector('#audio-player')
+    player.volume = 0 //default to half, just like the slider
+
+    let needsToStartOver = false
+
+    piInput.oninput = evt => {
+      const text = evt.target.value
+      if (needsToStartOver && text.length === 0) {
+        needsToStartOver = false
+        failedText.style.display = 'none'
+      } else if (!needsToStartOver) {
+        needsToStartOver = !(piString.substring(0, text.length) === text)
+        volumeNumber.innerText = needsToStartOver ? 0 : text.length
+        failedText.style.display = needsToStartOver ? 'inline' : 'none'
+        player.volume = needsToStartOver ? 0 : text.length / 100
+      }
+    }
+
+    // code to play the music
+    const playMusic = document.querySelector('#play-music')
+    playMusic.onclick = () => {
+      if (player.paused) {
+        player.play()
+        playMusic.innerText = "Pause Music"
+      } else {
+        player.pause()
+        playMusic.innerText = "Play Music"
+      }
+    }
+  </script>
+</body>
+
+</html>

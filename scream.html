@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html>
+
+<body>
+  <!--
+1) https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getUserMedia and then https://developer.mozilla.org/en-US/docs/Web/API/MediaStream
+
+2) HTML5 audio terms: gain, createScriptProcessor, createAnalyser, and quite a few of those aren't even documented... many of them also say "This is/will soon be deprecated, please use {x} instead" but there aren't any support articles or examples or wide browser support :/
+
+3) Analyser allows you to read from a stream, and it doesn't affect the stream itself
+
+4) the byteFrequenceData we get is essentially the whole line we can see here, broken up into how big the buffer we made when we created the script processor (1024 in this case): http://mdn.github.io/voice-change-o-matic/
+
+each value in the array tells us how loud that particular part of the frequency is, e.g. how tall it is in the previous demo
+
+so what we do is get the average of the individual bars which equates to the total sound of the mic!
+
+-->
+
+  <button id="start-listening">Choose Volume</button>
+  <button id="play-music">Play Music</button>
+  <div>
+    <span id="vol-helper-text">Volume:</span>
+    <div id="volume-indicator">0</div>
+  </div>
+
+  <audio src="bensound-cute.mp3" loop id="audio-player"></audio>
+
+  <p>Music gracefully provided by <a href="http://www.bensound.com/royalty-free-music" rel="noopener"
+      target="_blank">http://www.bensound.com/royalty-free-music</a></p>
+  <script>
+    const startButton = document.querySelector('#start-listening')
+    const playMusic = document.querySelector('#play-music')
+    const player = document.querySelector('#audio-player')
+    const volIndicator = document.querySelector('#volume-indicator')
+    const volHelperText = document.querySelector('#vol-helper-text')
+    player.volume = 0
+
+    playMusic.onclick = () => {
+      if (player.paused) {
+        player.play()
+        playMusic.innerText = "Pause Music"
+      } else {
+        player.pause()
+        playMusic.innerText = "Play Music"
+      }
+    }
+
+    startButton.onclick = evt => {
+      player.pause()
+      playMusic.innerText = "Play Music"
+
+      navigator.mediaDevices.getUserMedia({ audio: true })
+        .then(stream => {
+
+          volHelperText.innerText = 'Listening... scream if you want high volume, whisper if you want low volume'
+
+          const AudioContext = window.AudioContext || window.webkitAudioContext
+          const ctx = new AudioContext()
+          const microphone = ctx.createMediaStreamSource(stream)
+
+          // https://developer.mozilla.org/en-US/docs/Web/API/BaseAudioContext/createAnalyser
+          const analyser = ctx.createAnalyser()
+
+          // https://developer.mozilla.org/en-US/docs/Web/API/BaseAudioContext/createScriptProcessor
+          const scriptProcessor = ctx.createScriptProcessor(1024, 1, 1)
+
+          microphone.connect(analyser)
+          analyser.connect(scriptProcessor)
+          scriptProcessor.connect(ctx.destination)
+
+          let loudestVolume = 0
+
+          scriptProcessor.onaudioprocess = audioProcessingEvent => {
+            //don't actually use audioProcessingEvent for this example, since our data comes from the analyser
+
+            // https://developer.mozilla.org/en-US/docs/Web/API/AnalyserNode/frequencyBinCount
+            // the number of values that the analyser will give us in the next step
+            const arr = new Uint8Array(analyser.frequencyBinCount)
+
+            // https://developer.mozilla.org/en-US/docs/Web/API/AnalyserNode/getByteFrequencyData
+            // fill the array that we created with actual data
+            analyser.getByteFrequencyData(arr)
+
+            const totalVolume = arr.reduce((acc, val) => acc + val, 0)
+
+            const averageVolume = totalVolume / arr.length
+            loudestVolume = Math.min(Math.max(loudestVolume, averageVolume), 100)
+            volIndicator.innerText = Math.round(loudestVolume)
+          }
+
+          setTimeout(() => {
+            //stop listening and stop calling the onaudioprocess function
+            stream.getAudioTracks().forEach(track => track.stop())
+            scriptProcessor.onaudioprocess = null
+            volHelperText.innerText = 'Volume:'
+            player.volume = loudestVolume / 100
+          }, 4000)
+
+        })
+        .catch(err => {
+          if (err.name === "NotAllowedError") {
+            alert('we need mic access for this demo')
+          } else if (err.name === "NotFoundError") {
+            alert(`couldn't connect to your mic`)
+          } else {
+            console.error(err)
+            alert(err.message)
+          }
+        })
+    }
+  </script>
+</body>
+
+</html>
